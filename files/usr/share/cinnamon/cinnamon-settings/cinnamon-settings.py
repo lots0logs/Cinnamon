@@ -66,9 +66,6 @@ CONTROL_CENTER_MODULES = [
 #         Label                              Module ID                Icon                         Category      Keywords for filter
     [_("Networking"),                       "network",            "cs-network",                 "hardware",      _("network, wireless, wifi, ethernet, broadband, internet")],
     [_("Display"),                          "display",            "cs-display",                 "hardware",      _("display, screen, monitor, layout, resolution, dual, lcd")],
-    [_("Bluetooth"),                        "bluetooth",          "cs-bluetooth",               "hardware",      _("bluetooth, dongle, transfer, mobile")],
-    [_("Accessibility"),                    "universal-access",   "cs-universal-access",        "prefs",         _("magnifier, talk, access, zoom, keys, contrast")],
-    [_("Sound"),                            "sound",              "cs-sound",                   "hardware",      _("sound, speakers, headphones, test")],
     [_("Color"),                            "color",              "cs-color",                   "hardware",      _("color, profile, display, printer, output")],
     [_("Graphics Tablet"),                  "wacom",              "cs-tablet",                  "hardware",      _("wacom, digitize, tablet, graphics, calibrate, stylus")]
 ]
@@ -78,6 +75,7 @@ STANDALONE_MODULES = [
     [_("Printers"),                      "system-config-printer",        "cs-printer",         "hardware",       _("printers, laser, inkjet")],
     [_("Firewall"),                      "gufw",                         "cs-firewall",        "admin",          _("firewall, block, filter, programs")],
     [_("Languages"),                     "mintlocale",                   "cs-language",        "prefs",          _("language, install, foreign")],
+    [_("Input Method"),                  "mintlocale im",                "cs-input-method",    "prefs",          _("language, install, foreign, input, method, chinese, korean, japanese, typing")],
     [_("Login Window"),                  "gksu /usr/sbin/mdmsetup",      "cs-login",           "admin",          _("login, mdm, gdm, manager, user, password, startup, switch")],
     [_("Driver Manager"),                "mintdrivers",                  "cs-drivers",         "admin",          _("video, driver, wifi, card, hardware, proprietary, nvidia, radeon, nouveau, fglrx")],
     [_("Software Sources"),              "mintsources",                  "cs-sources",         "admin",          _("ppa, repository, package, source, download")],
@@ -86,6 +84,7 @@ STANDALONE_MODULES = [
 ]
 
 def print_timing(func):
+    # decorate functions with @print_timing to output how long they take to run.
     def wrapper(*arg):
         t1 = time.time()
         res = func(*arg)
@@ -180,7 +179,6 @@ class MainWindow:
                 self.side_view[key].unselect_all()
 
     ''' Create the UI '''
-    @print_timing
     def __init__(self):
         self.builder = Gtk.Builder()
         self.builder.add_from_file("/usr/share/cinnamon/cinnamon-settings/cinnamon-settings.ui")
@@ -205,9 +203,6 @@ class MainWindow:
         button_image.props.icon_size = Gtk.IconSize.MENU
 
         self.stack_switcher = self.builder.get_object("stack_switcher")
-        # Set stack to random thing and make opacity 0 so that the heading bar
-        # does not resize when switching between pages
-        self.stack_switcher.set_stack(self.main_stack)
 
         m, n = self.button_back.get_preferred_width()
         self.stack_switcher.set_margin_right(n)

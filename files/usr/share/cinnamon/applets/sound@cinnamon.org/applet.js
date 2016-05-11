@@ -9,7 +9,7 @@ const Clutter = imports.gi.Clutter;
 const St = imports.gi.St;
 const PopupMenu = imports.ui.popupMenu;
 const GLib = imports.gi.GLib;
-const Gvc = imports.gi.Gvc;
+const Cvc = imports.gi.Cvc;
 const Pango = imports.gi.Pango;
 const Tooltips = imports.ui.tooltips;
 const Main = imports.ui.main;
@@ -121,7 +121,7 @@ VolumeSlider.prototype = {
         } else {
             this.actor.show();
             this.stream = stream;
-            this.isMic = stream instanceof Gvc.MixerSource || stream instanceof Gvc.MixerSourceOutput;
+            this.isMic = stream instanceof Cvc.MixerSource || stream instanceof Cvc.MixerSourceOutput;
 
             let mutedId = stream.connect("notify::is-muted", Lang.bind(this, this._update));
             let volumeId = stream.connect("notify::volume", Lang.bind(this, this._update));
@@ -224,7 +224,6 @@ StreamMenuSection.prototype = {
         }
 
         let slider = new VolumeSlider(applet, stream, name, iconName);
-        slider._slider.set_style("padding-right: 1.75em;");
         this.addMenuItem(slider);
     }
 }
@@ -311,6 +310,7 @@ Player.prototype = {
         if (this._mediaServer.CanQuit) {
             let btn = new ControlButton("window-close", _("Quit Player"), Lang.bind(this, function(){
                 this._mediaServer.QuitRemote();
+                this._applet.menu.close();
             }), true);
             playerBox.add_actor(btn.actor, { expand: true, x_fill: false, x_align: St.Align.END });
         }
@@ -325,7 +325,7 @@ Player.prototype = {
         this.coverBox.set_layout_manager(l);
 
         // Cover art
-        this.cover = new St.Icon({icon_name: "media-optical-cd-audio", icon_size: 300 * global.ui_scale, icon_type: St.IconType.FULLCOLOR});
+        this.cover = new St.Icon({icon_name: "media-optical-cd-audio", icon_size: 300, icon_type: St.IconType.FULLCOLOR});
         this.coverBox.add_actor(this.cover);
 
         // Track info (artist + title)
@@ -375,11 +375,15 @@ Player.prototype = {
             this._loopButton = new ControlButton("media-playlist-consecutive", _("Consecutive Playing"), Lang.bind(this, this._toggleLoopStatus));
             this._loopButton.actor.visible = this._applet.extendedPlayerControl;
             this.controls.add_actor(this._loopButton.getActor());
+
+            this._setLoopStatus(this._mediaServerPlayer.LoopStatus);
         }
         if(this._mediaServerPlayer.Shuffle !== undefined){
             this._shuffleButton = new ControlButton("media-playlist-shuffle", _("No Shuffle"), Lang.bind(this, this._toggleShuffle));
             this._shuffleButton.actor.visible = this._applet.extendedPlayerControl;
             this.controls.add_actor(this._shuffleButton.getActor());
+
+            this._setShuffle(this._mediaServerPlayer.Shuffle);
         }
 
         // Position slider
@@ -575,12 +579,13 @@ Player.prototype = {
 
         let change = false;
         if (metadata["mpris:artUrl"]) {
-            if (this._trackCoverFile != metadata["mpris:artUrl"].unpack()) {
-                this._trackCoverFile = metadata["mpris:artUrl"].unpack();
-
-                if ( this._name === "spotify" )
-                    this._trackCoverFile = this._trackCoverFile.replace("/thumb/", "/300/");
-
+            let artUrl = metadata["mpris:artUrl"].unpack();
+            if ( this._name === "spotify" ) {
+                artUrl = artUrl.replace("/thumb/", "/300/"); // Spotify 0.9.x
+                artUrl = artUrl.replace("/image/", "/300/"); // Spotify 0.27.x
+            }
+            if (this._trackCoverFile != artUrl) {
+                this._trackCoverFile = artUrl;
                 change = true;
             }
         }
@@ -598,7 +603,7 @@ Player.prototype = {
                     this._hideCover();
                     let cover = Gio.file_new_for_uri(decodeURIComponent(this._trackCoverFile));
                     this._trackCoverFileTmp = Gio.file_new_tmp('XXXXXX.mediaplayer-cover')[0];
-                    cover.read_async(null, null, Lang.bind(this, this._onReadCover));
+                    Util.spawn_async(['wget', this._trackCoverFile, '-O', this._trackCoverFileTmp.get_path()], Lang.bind(this, this._onDownloadedCover));
                 }
                 else {
                     cover_path = decodeURIComponent(this._trackCoverFile);
@@ -758,14 +763,7 @@ Player.prototype = {
         return numHours + numMins.toString() + ":" + numSecs.toString();
     },
 
-    _onReadCover: function(cover, result) {
-        let inStream = cover.read_finish(result);
-        let outStream = this._trackCoverFileTmp.replace(null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null, null);
-        outStream.splice_async(inStream, Gio.OutputStreamSpliceFlags.CLOSE_TARGET, 0, null, Lang.bind(this, this._onSavedCover));
-    },
-
-    _onSavedCover: function(outStream, result) {
-        outStream.splice_finish(result, null);
+    _onDownloadedCover: function() {
         let cover_path = this._trackCoverFileTmp.get_path();
         this._showCover(cover_path);
     },
@@ -784,11 +782,11 @@ Player.prototype = {
             onComplete: Lang.bind(this, function() {*/
                 this.coverBox.remove_actor(this.cover);
                 if (! cover_path || ! GLib.file_test(cover_path, GLib.FileTest.EXISTS)) {
-                    this.cover = new St.Icon({style_class: 'sound-player-generic-coverart', important: true, icon_name: "media-optical-cd-audio", icon_size: 300 * global.ui_scale, icon_type: St.IconType.FULLCOLOR});
+                    this.cover = new St.Icon({style_class: 'sound-player-generic-coverart', important: true, icon_name: "media-optical-cd-audio", icon_size: 300, icon_type: St.IconType.FULLCOLOR});
                     cover_path = null;
                 }
                 else {
-                    this.cover = new Clutter.Texture({width: 300 * global.ui_scale, keep_aspect_ratio: true, filter_quality: 2, filename: cover_path});
+                    this.cover = new Clutter.Texture({width: 300, keep_aspect_ratio: true, filter_quality: 2, filename: cover_path});
                 }
                 this.coverBox.add_actor(this.cover);
                 this.coverBox.set_child_below_sibling(this.cover, this.trackInfo);
@@ -930,7 +928,7 @@ MyApplet.prototype = {
                 ));
             }));
 
-            this._control = new Gvc.MixerControl({ name: 'Cinnamon Volume Control' });
+            this._control = new Cvc.MixerControl({ name: 'Cinnamon Volume Control' });
             this._control.connect('state-changed', Lang.bind(this, this._onControlStateChanged));
 
             this._control.connect('output-added', Lang.bind(this, this._onDeviceAdded, "output"));
@@ -1326,7 +1324,7 @@ MyApplet.prototype = {
     },
 
     _onControlStateChanged: function() {
-        if (this._control.get_state() == Gvc.MixerControlState.READY) {
+        if (this._control.get_state() == Cvc.MixerControlState.READY) {
             this._readOutput();
             this._readInput();
             this.actor.show();
@@ -1375,7 +1373,6 @@ MyApplet.prototype = {
 
         let bin = new St.Bin({ x_align: St.Align.END, style_class: 'popup-inactive-menu-item' });
         let label = new St.Label({ text: device.origin });
-        label.set_style("padding-right: 1.75em;");
         bin.add_actor(label);
         item.addActor(bin, { expand: true, span: -1, align: St.Align.END });
 
@@ -1424,13 +1421,13 @@ MyApplet.prototype = {
             return;
         }
 
-        if(stream instanceof Gvc.MixerSinkInput){
+        if(stream instanceof Cvc.MixerSinkInput){
             //for sink inputs, add a menuitem to the application submenu
             let item = new StreamMenuSection(this, stream);
             this._outputApplicationsMenu.menu.addMenuItem(item);
             this._outputApplicationsMenu.actor.show();
             this._streams.push({id: id, type: "SinkInput", item: item});
-        } else if(stream instanceof Gvc.MixerSourceOutput){
+        } else if(stream instanceof Cvc.MixerSourceOutput){
             //for source outputs, only show the input section
             this._streams.push({id: id, type: "SourceOutput"});
             if(this._recordingAppsNum++ === 0)

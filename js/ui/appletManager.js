@@ -276,7 +276,7 @@ function addAppletToPanels(extension, appletDefinition) {
                        (appletDefinition.order < x._applet._order));
 
         if (before)
-            location.insert_before(applet.actor, before);
+            location.insert_child_below(applet.actor, before);
         else
             location.add_actor(applet.actor);
 
@@ -436,7 +436,8 @@ function get_object_for_instance (appletId) {
 }
 
 function get_object_for_uuid (uuid, instanceId) {
-    return appletObj.find(x => x._uuid == uuid || x.instance_id == instanceId);
+    return appletObj.find(x => x && x._uuid == uuid &&
+                               (x.instance_id == instanceId || instanceId == uuid));
 }
 
 
@@ -561,7 +562,7 @@ function pasteAppletConfiguration(panelId) {
 }
 
 function getRunningInstancesForUuid(uuid) {
-    return appletObj.filter(x => x._uuid == uuid);
+    return appletObj.filter(x => x && x._uuid == uuid);
 }
 
 function callAppletInstancesChanged(uuid) {

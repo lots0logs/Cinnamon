@@ -152,10 +152,18 @@
     </key>
     
     <key name="desktop-effects-on-dialogs" type="b">
-      <default>false</default>
+      <default>true</default>
       <_summary>Enable desktop effects on dialog boxes</_summary>
       <_description>
         Whether to enable desktop effects on dialog boxes.
+      </_description>
+    </key>
+
+    <key name="desktop-effects-on-menus" type="b">
+      <default>true</default>
+      <_summary>Enable desktop effects on Gtk menus</_summary>
+      <_description>
+        Whether to enable desktop effects on Gtk menus.
       </_description>
     </key>
 
@@ -163,20 +171,21 @@
       <default>"cinnamon"</default>
       <_summary>The style of desktop effects</_summary>
       <_description>
-        An overall style used for desktop effects
+        An overall style used for desktop effects.
+        This key should not be edited directly.
       </_description>
     </key>
 
     <key type="s" name="desktop-effects-close-effect">
-      <default>"none"</default>
+      <default>"traditional"</default>
       <_summary>Effect used when closing windows</_summary>
       <_description>
-       An effect: scale, fade, none
+       An effect: scale, fade, traditional, none
       </_description>
     </key>
     
      <key name="desktop-effects-close-transition" type="s">
-      <default>"easeInBack"</default>
+      <default>"easeOutQuad"</default>
       <_summary>Transition used when closing windows</_summary>
       <_description>
        A Tweener transition
@@ -184,7 +193,7 @@
     </key>
     
     <key type="i" name="desktop-effects-close-time">
-      <default>250</default>
+      <default>175</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -192,15 +201,15 @@
     </key>
     
     <key type="s" name="desktop-effects-map-effect">
-      <default>"scale"</default>
+      <default>"traditional"</default>
       <_summary>Effect used when mapping windows</_summary>
       <_description>
-       An effect: scale, fade, none
+       An effect: scale, fade, traditional, none
       </_description>
     </key>
     
      <key name="desktop-effects-map-transition" type="s">
-      <default>"easeOutSine"</default>
+      <default>"easeOutQuad"</default>
       <_summary>Transition used when mapping windows</_summary>
       <_description>
        A Tweener transition
@@ -208,7 +217,7 @@
     </key>
     
     <key type="i" name="desktop-effects-map-time">
-      <default>250</default>
+      <default>175</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -217,15 +226,15 @@
     
     
     <key type="s" name="desktop-effects-minimize-effect">
-      <default>"scale"</default>
+      <default>"traditional"</default>
       <_summary>Effect used when minimizing windows</_summary>
       <_description>
-       An effect: traditional, scale, fade, none
+       An effect: traditional, scale, fade, traditional, none
       </_description>
     </key>
     
      <key name="desktop-effects-minimize-transition" type="s">
-      <default>"easeInSine"</default>
+      <default>"easeInQuad"</default>
       <_summary>Transition used when minimizing windows</_summary>
       <_description>
        A Tweener transition
@@ -233,7 +242,7 @@
     </key>
     
     <key type="i" name="desktop-effects-minimize-time">
-      <default>150</default>
+      <default>200</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -249,7 +258,7 @@
     </key>
     
      <key name="desktop-effects-maximize-transition" type="s">
-      <default>"easeInBack"</default>
+      <default>"easeInExpo"</default>
       <_summary>Transition used when maximizing windows</_summary>
       <_description>
        A Tweener transition
@@ -257,7 +266,7 @@
     </key>
     
     <key type="i" name="desktop-effects-maximize-time">
-      <default>400</default>
+      <default>100</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -273,7 +282,7 @@
     </key>
     
      <key name="desktop-effects-unmaximize-transition" type="s">
-      <default>"easeOutBounce"</default>
+      <default>"easeNone"</default>
       <_summary>Transition used when unmaximizing windows</_summary>
       <_description>
        A Tweener transition
@@ -281,7 +290,7 @@
     </key>
     
     <key type="i" name="desktop-effects-unmaximize-time">
-      <default>400</default>
+      <default>100</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -297,7 +306,7 @@
     </key>
     
      <key name="desktop-effects-tile-transition" type="s">
-      <default>"easeInBack"</default>
+      <default>"easeInQuad"</default>
       <_summary>Transition used when maximizing windows</_summary>
       <_description>
        A Tweener transition
@@ -305,7 +314,7 @@
     </key>
     
     <key type="i" name="desktop-effects-tile-time">
-      <default>400</default>
+      <default>100</default>
       <_summary>Duration of the effect (in milliseconds)</_summary>
       <_description>
        Duration of the effect (in milliseconds)    
@@ -317,6 +326,13 @@
       <_summary>Whether the startup animation is enabled</_summary>
       <_description>
        Whether the startup animation is enabled   
+      </_description>
+    </key>
+
+    <key name="device-aliases" type="as">
+      <default>[]</default>
+      <_summary>Aliases given to battery powered fardware devices</_summary>
+      <_description>
       </_description>
     </key>
 
@@ -589,6 +605,14 @@
       <default>1</default>
       <summary>Utility read-only setting used by st library</summary>
       <description>Current scale factor</description>
+    </key>
+
+    <key name="enable-indicators" type="b">
+      <default>false</default>
+      <_summary>Enable support for indicators</_summary>
+      <_description>
+        Whether to support indicators
+      </_description>
     </key>
 
   </schema>

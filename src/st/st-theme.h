@@ -48,8 +48,8 @@ typedef struct _StThemeClass StThemeClass;
 GType  st_theme_get_type (void) G_GNUC_CONST;
 
 StTheme *st_theme_new(GFile *application_stylesheet,
-					  GFile *theme_stylesheet,
-					  GFile *default_stylesheet);
+                      GFile *theme_stylesheet,
+                      GFile *default_stylesheet);
 
 gboolean  st_theme_load_stylesheet(StTheme *theme, GFile *file, GError **error);
 void      st_theme_unload_stylesheet(StTheme *theme, GFile *file);

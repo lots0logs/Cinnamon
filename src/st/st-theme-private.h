@@ -32,10 +32,10 @@ GPtrArray *_st_theme_get_matched_properties (StTheme       *theme,
 GPtrArray *_st_theme_get_matched_properties_fallback (StTheme       *theme,
                                                       StThemeNode   *node);
 
-/* Resolve an URL from the stylesheet to a filename */
-GFile * _st_theme_resolve_url(StTheme *theme,
-							  CRStyleSheet *base_stylesheet,
-							  const char *url);
+/* Resolve an URL from the stylesheet to a GFile */
+GFile * _st_theme_resolve_url(StTheme      *theme,
+                              CRStyleSheet *base_stylesheet,
+                              const char   *url);
 
 CRDeclaration *_st_theme_parse_declaration_list (const char *str);
 

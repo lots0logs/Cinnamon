@@ -151,10 +151,10 @@ st_theme_class_init (StThemeClass *klass)
    */
   g_object_class_install_property (object_class,
                                    PROP_APPLICATION_STYLESHEET,
-                                   g_param_spec_string ("application-stylesheet",
+                                   g_param_spec_object ("application-stylesheet",
                                                         "Application Stylesheet",
                                                         "Stylesheet with application-specific styling",
-                                                        NULL,
+                                                        G_TYPE_FILE,
                                                         G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
@@ -165,10 +165,10 @@ st_theme_class_init (StThemeClass *klass)
    */
   g_object_class_install_property (object_class,
                                    PROP_THEME_STYLESHEET,
-                                   g_param_spec_string ("theme-stylesheet",
+                                   g_param_spec_object ("theme-stylesheet",
                                                         "Theme Stylesheet",
                                                         "Stylesheet with theme-specific styling",
-                                                        NULL,
+                                                        G_TYPE_FILE,
                                                         G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
@@ -179,10 +179,10 @@ st_theme_class_init (StThemeClass *klass)
    */
   g_object_class_install_property (object_class,
                                    PROP_DEFAULT_STYLESHEET,
-                                   g_param_spec_string ("default-stylesheet",
+                                   g_param_spec_object ("default-stylesheet",
                                                         "Default Stylesheet",
                                                         "Stylesheet with global default styling",
-                                                        NULL,
+                                                        G_TYPE_FILE,
                                                         G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
@@ -193,10 +193,10 @@ st_theme_class_init (StThemeClass *klass)
    */
   g_object_class_install_property (object_class,
                                    PROP_FALLBACK_STYLESHEET,
-                                   g_param_spec_string ("fallback-stylesheet",
+                                   g_param_spec_object ("fallback-stylesheet",
                                                         "Fallback Stylesheet",
                                                         "Fallback stylesheet for important system widgets.",
-                                                        NULL,
+                                                        G_TYPE_FILE,
                                                         G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY));
 
   signals[STYLESHEETS_CHANGED] = g_signal_new ("custom-stylesheets-changed",

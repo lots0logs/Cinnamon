@@ -1880,9 +1880,11 @@ _st_theme_node_ensure_background (StThemeNode *node)
                 base_stylesheet = NULL;
 
               g_clear_object (&node->background_image);
-              node->background_image = _st_theme_resolve_url (node->theme,
-                                                              base_stylesheet,
-                                                              decl->value->content.str->stryng->str);
+              node->background_image = _st_theme_resolve_url (
+				  node->theme,
+				  base_stylesheet,
+				  decl->value->content.str->stryng->str
+			  );
             }
           else if (term_is_inherit (decl->value))
             {
@@ -2723,7 +2725,7 @@ st_theme_node_get_border_image (StThemeNode *node)
           int border_bottom;
           int border_left;
 
-          char *filename;
+          GFile *file;
 
           /* Support border-image: none; to suppress a previously specified border image */
           if (term_is_none (term))
@@ -2802,14 +2804,14 @@ st_theme_node_get_border_image (StThemeNode *node)
           else
             base_stylesheet = NULL;
 
-          filename = _st_theme_resolve_url (node->theme, base_stylesheet, url);
-          if (filename == NULL)
+          file = _st_theme_resolve_url (node->theme, base_stylesheet, url);
+          if (file == NULL)
             goto next_property;
 
-          node->border_image = st_border_image_new (filename,
+          node->border_image = st_border_image_new (file,
                                                     border_top, border_right, border_bottom, border_left);
 
-          g_free (filename);
+          g_free (file);
 
           return node->border_image;
         }

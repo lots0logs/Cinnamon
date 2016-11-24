@@ -63,16 +63,16 @@ struct _StTheme
 {
   GObject parent;
 
-  char *application_stylesheet;
-  char *default_stylesheet;
-  char *theme_stylesheet;
+  GFile *application_stylesheet;
+  GFile *default_stylesheet;
+  GFile *theme_stylesheet;
 
-  char *fallback_stylesheet;
+  GFile *fallback_stylesheet;
 
   GSList *custom_stylesheets;
 
-  GHashTable *stylesheets_by_filename;
-  GHashTable *filenames_by_stylesheet;
+  GHashTable *stylesheets_by_file;
+  GHashTable *files_by_stylesheet;
 
   CRCascade *cascade;
   CRStyleSheet *fallback_cr_stylesheet;
@@ -106,12 +106,31 @@ G_DEFINE_TYPE (StTheme, st_theme, G_TYPE_OBJECT)
 #define strqcmp(str,lit,lit_len) \
   (strlen (str) != (lit_len) || memcmp (str, lit, lit_len))
 
+
+static gboolean
+file_equal0 (GFile *file1,
+             GFile *file2) {
+  if (file1 == file2) {
+    return TRUE;
+  }
+
+  if ((file1 == NULL) || (file2 == NULL)) {
+    return FALSE;
+  }
+
+  return g_file_equal (file1, file2);
+}
+
 static void
-st_theme_init (StTheme *theme)
-{
-  theme->stylesheets_by_filename = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                                          (GDestroyNotify)g_free, (GDestroyNotify)cr_stylesheet_unref);
-  theme->filenames_by_stylesheet = g_hash_table_new (g_direct_hash, g_direct_equal);
+st_theme_init (StTheme *theme) {
+  theme->stylesheets_by_file = g_hash_table_new_full (
+      g_file_hash,
+      (GEqualFunc) g_file_equal,
+      (GDestroyNotify) g_object_unref,
+      (GDestroyNotify) cr_stylesheet_unref
+  );
+
+  theme->files_by_stylesheet = g_hash_table_new (g_direct_hash, g_direct_equal);
 }
 
 static void
@@ -189,25 +208,36 @@ st_theme_class_init (StThemeClass *klass)
 }
 
 static CRStyleSheet *
-parse_stylesheet (const char  *filename,
-                  GError     **error)
+parse_stylesheet(GFile *file,
+                 GError **error)
 {
   enum CRStatus status;
   CRStyleSheet *stylesheet;
+  char *contents;
+  gsize length;
 
-  if (filename == NULL)
+  if (file == NULL || ! g_file_load_contents (file, NULL, &contents, &length, NULL, error)) {
     return NULL;
+  }
 
-  status = cr_om_parser_simply_parse_file ((const guchar *) filename,
-                                           CR_UTF_8,
-                                           &stylesheet);
+  status = cr_om_parser_simply_parse_buf ((const guchar *) contents, length, CR_UTF_8, &stylesheet);
 
-  if (status != CR_OK)
-    {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Error parsing stylesheet '%s'; errcode:%d", filename, status);
-      return NULL;
-    }
+  g_free (contents);
+
+  if (status != CR_OK) {
+    char *uri = g_file_get_uri (file);
+
+    g_set_error (
+        error,
+        G_IO_ERROR,
+        G_IO_ERROR_FAILED,
+        "Error parsing stylesheet '%s'; errcode:%d", uri, status
+    );
+
+    g_free (uri);
+
+    return NULL;
+  }
 
   return stylesheet;
 }
@@ -221,12 +251,12 @@ _st_theme_parse_declaration_list (const char *str)
 
 /* Just g_warning for now until we have something nicer to do */
 static CRStyleSheet *
-parse_stylesheet_nofail (const char *filename)
+parse_stylesheet_nofail(GFile *file)
 {
   GError *error = NULL;
   CRStyleSheet *result;
 
-  result = parse_stylesheet (filename, &error);
+  result = parse_stylesheet (file, &error);
   if (error)
     {
       g_warning ("%s", error->message);
@@ -236,34 +266,31 @@ parse_stylesheet_nofail (const char *filename)
 }
 
 static void
-insert_stylesheet (StTheme      *theme,
-                   const char   *filename,
-                   CRStyleSheet *stylesheet)
-{
-  char *filename_copy;
-
-  if (stylesheet == NULL)
+insert_stylesheet(StTheme *theme,
+                  GFile *file,
+                  CRStyleSheet *stylesheet) {
+  if (stylesheet == NULL) {
     return;
+  }
 
-  filename_copy = g_strdup(filename);
+  g_object_ref (file);
   cr_stylesheet_ref (stylesheet);
 
-  g_hash_table_insert (theme->stylesheets_by_filename, filename_copy, stylesheet);
-  g_hash_table_insert (theme->filenames_by_stylesheet, stylesheet, filename_copy);
+  g_hash_table_insert (theme->stylesheets_by_file, file, stylesheet);
+  g_hash_table_insert (theme->files_by_stylesheet, stylesheet, file);
 }
 
 gboolean
-st_theme_load_stylesheet (StTheme    *theme,
-                          const char *path,
-                          GError    **error)
-{
+st_theme_load_stylesheet(StTheme *theme,
+                         GFile *file,
+                         GError **error) {
   CRStyleSheet *stylesheet;
 
-  stylesheet = parse_stylesheet_nofail (path);
-  if (!stylesheet)
-    return FALSE;
+  stylesheet = parse_stylesheet_nofail (file);
 
-  insert_stylesheet (theme, path, stylesheet);
+  g_return_val_if_fail (stylesheet, FALSE);
+
+  insert_stylesheet (theme, file, stylesheet);
   cr_stylesheet_ref (stylesheet);
   theme->custom_stylesheets = g_slist_prepend (theme->custom_stylesheets, stylesheet);
   g_signal_emit (theme, signals[STYLESHEETS_CHANGED], 0);
@@ -272,21 +299,18 @@ st_theme_load_stylesheet (StTheme    *theme,
 }
 
 void
-st_theme_unload_stylesheet (StTheme    *theme,
-                            const char *path)
-{
+st_theme_unload_stylesheet(StTheme *theme,
+                           GFile *file) {
   CRStyleSheet *stylesheet;
 
-  stylesheet = g_hash_table_lookup (theme->stylesheets_by_filename, path);
-  if (!stylesheet)
-    return;
+  stylesheet = g_hash_table_lookup (theme->stylesheets_by_file, file);
 
-  if (!g_slist_find (theme->custom_stylesheets, stylesheet))
-    return;
+  g_return_if_fail (stylesheet);
+  g_return_if_fail (g_slist_find (theme->custom_stylesheets, stylesheet));
 
   theme->custom_stylesheets = g_slist_remove (theme->custom_stylesheets, stylesheet);
-  g_hash_table_remove (theme->stylesheets_by_filename, path);
-  g_hash_table_remove (theme->filenames_by_stylesheet, stylesheet);
+  g_hash_table_remove (theme->stylesheets_by_file, file);
+  g_hash_table_remove (theme->files_by_stylesheet, stylesheet);
   cr_stylesheet_unref (stylesheet);
   g_signal_emit (theme, signals[STYLESHEETS_CHANGED], 0);
 }
@@ -295,7 +319,7 @@ st_theme_unload_stylesheet (StTheme    *theme,
  * st_theme_get_custom_stylesheets:
  * @theme: an #StTheme
  *
- * Returns: (transfer full) (element-type utf8): the list of stylesheet filenames
+ * Returns: (transfer full) (element-type GFile): the list of stylesheet files
  *          that were loaded with st_theme_load_stylesheet()
  */
 GSList*
@@ -307,9 +331,9 @@ st_theme_get_custom_stylesheets (StTheme *theme)
   for (iter = theme->custom_stylesheets; iter; iter = iter->next)
     {
       CRStyleSheet *stylesheet = iter->data;
-      gchar *filename = g_hash_table_lookup (theme->filenames_by_stylesheet, stylesheet);
+      GFile *file = g_hash_table_lookup (theme->files_by_stylesheet, stylesheet);
 
-      result = g_slist_prepend (result, g_strdup (filename));
+      result = g_slist_prepend (result, g_object_ref (file));
     }
 
   return result;
@@ -360,8 +384,8 @@ st_theme_finalize (GObject * object)
   g_slist_free (theme->custom_stylesheets);
   theme->custom_stylesheets = NULL;
 
-  g_hash_table_destroy (theme->stylesheets_by_filename);
-  g_hash_table_destroy (theme->filenames_by_stylesheet);
+  g_hash_table_destroy (theme->stylesheets_by_file);
+  g_hash_table_destroy (theme->files_by_stylesheet);
 
   g_free (theme->application_stylesheet);
   g_free (theme->theme_stylesheet);
@@ -389,49 +413,57 @@ st_theme_set_property (GObject      *object,
     {
     case PROP_APPLICATION_STYLESHEET:
       {
-        const char *path = g_value_get_string (value);
+        GFile *file = g_value_get_object (value);
 
-        if (path != theme->application_stylesheet)
-          {
-            g_free (theme->application_stylesheet);
-            theme->application_stylesheet = g_strdup (path);
+        if (!file_equal0 (file, theme->application_stylesheet)) {
+          g_clear_object (&theme->application_stylesheet);
+
+          if (NULL != file) {
+            theme->application_stylesheet = g_object_ref (file);
           }
+        }
 
         break;
       }
     case PROP_THEME_STYLESHEET:
       {
-        const char *path = g_value_get_string (value);
+        GFile *file = g_value_get_object (value);
 
-        if (path != theme->theme_stylesheet)
-          {
-            g_free (theme->theme_stylesheet);
-            theme->theme_stylesheet = g_strdup (path);
+        if (!file_equal0 (file, theme->theme_stylesheet)) {
+          g_clear_object (&theme->theme_stylesheet);
+
+          if (NULL != file) {
+            theme->theme_stylesheet = g_object_ref (file);
           }
+        }
 
         break;
       }
     case PROP_DEFAULT_STYLESHEET:
       {
-        const char *path = g_value_get_string (value);
+        GFile *file = g_value_get_object (value);
 
-        if (path != theme->default_stylesheet)
-          {
-            g_free (theme->default_stylesheet);
-            theme->default_stylesheet = g_strdup (path);
+        if (!file_equal0 (file, theme->default_stylesheet)) {
+          g_clear_object (&theme->default_stylesheet);
+
+          if (NULL != file) {
+            theme->default_stylesheet = g_object_ref (file);
           }
+        }
 
         break;
       }
     case PROP_FALLBACK_STYLESHEET:
       {
-        const char *path = g_value_get_string (value);
+        GFile *file = g_value_get_object (value);
 
-        if (path != theme->fallback_stylesheet)
-          {
-            g_free (theme->fallback_stylesheet);
-            theme->fallback_stylesheet = g_strdup (path);
+        if (!file_equal0 (file, theme->fallback_stylesheet)) {
+          g_clear_object (&theme->fallback_stylesheet);
+
+          if (NULL != file) {
+            theme->fallback_stylesheet = g_object_ref (file);
           }
+        }
 
         break;
       }
@@ -452,16 +484,16 @@ st_theme_get_property (GObject    *object,
   switch (prop_id)
     {
     case PROP_APPLICATION_STYLESHEET:
-      g_value_set_string (value, theme->application_stylesheet);
+      g_value_set_object (value, theme->application_stylesheet);
       break;
     case PROP_THEME_STYLESHEET:
-      g_value_set_string (value, theme->theme_stylesheet);
+      g_value_set_object (value, theme->theme_stylesheet);
       break;
     case PROP_DEFAULT_STYLESHEET:
-      g_value_set_string (value, theme->default_stylesheet);
+      g_value_set_object (value, theme->default_stylesheet);
       break;
     case PROP_FALLBACK_STYLESHEET:
-      g_value_set_string (value, theme->fallback_stylesheet);
+      g_value_set_object (value, theme->fallback_stylesheet);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -481,15 +513,16 @@ st_theme_get_property (GObject    *object,
  * Return value: the newly created theme object
  **/
 StTheme *
-st_theme_new (const char       *application_stylesheet,
-              const char       *theme_stylesheet,
-              const char       *default_stylesheet)
-{
-  StTheme *theme = g_object_new (ST_TYPE_THEME,
-                                    "application-stylesheet", application_stylesheet,
-                                    "theme-stylesheet", theme_stylesheet,
-                                    "default-stylesheet", default_stylesheet,
-                                    NULL);
+st_theme_new(GFile *application_stylesheet,
+             GFile *theme_stylesheet,
+             GFile *default_stylesheet) {
+  StTheme *theme = g_object_new (
+      ST_TYPE_THEME,
+      "application-stylesheet", application_stylesheet,
+      "theme-stylesheet", theme_stylesheet,
+      "default-stylesheet", default_stylesheet,
+      NULL
+  );
 
   return theme;
 }
@@ -890,33 +923,31 @@ add_matched_properties (StTheme      *a_this,
           {
             CRAtImportRule *import_rule = cur_stmt->kind.import_rule;
 
-            if (import_rule->sheet == NULL)
-              {
-                char *filename = NULL;
+            if (import_rule->sheet == NULL) {
+                GFile *file = NULL;
 
-                if (import_rule->url->stryng && import_rule->url->stryng->str)
-                  filename = _st_theme_resolve_url (a_this,
-                                                    a_nodesheet,
-                                                    import_rule->url->stryng->str);
+                if (import_rule->url->stryng && import_rule->url->stryng->str) {
+                  file = _st_theme_resolve_url (a_this, a_nodesheet, import_rule->url->stryng->str);
+                }
 
-                if (filename)
-                  import_rule->sheet = parse_stylesheet (filename, NULL);
+                if (file) {
+                  import_rule->sheet = parse_stylesheet (file, NULL);
+                }
 
-                if (import_rule->sheet)
-                  {
-                    insert_stylesheet (a_this, filename, import_rule->sheet);
+                if (import_rule->sheet) {
+                    insert_stylesheet (a_this, file, import_rule->sheet);
                     /* refcount of stylesheets starts off at zero, so we don't need to unref! */
-                  }
-                else
-                  {
+
+                } else {
                     /* Set a marker to avoid repeatedly trying to parse a non-existent or
                      * broken stylesheet
                      */
                     import_rule->sheet = (CRStyleSheet *) - 1;
                   }
 
-                if (filename)
-                  g_free (filename);
+                if (file) {
+                  g_free (file);
+                }
               }
 
             if (import_rule->sheet != (CRStyleSheet *) - 1)
@@ -1063,67 +1094,49 @@ _st_theme_get_matched_properties_fallback (StTheme        *theme,
 }
 
 
-/* Resolve an url from an url() reference in a stylesheet into an absolute
- * local filename, if possible. The resolution here is distinctly lame and
+/* Resolve an url from an url() reference in a stylesheet into a GFile,
+ * if possible. The resolution here is distinctly lame and
  * will fail on many examples.
  */
-char *
-_st_theme_resolve_url (StTheme      *theme,
-                       CRStyleSheet *base_stylesheet,
-                       const char   *url)
-{
-  const char *base_filename = NULL;
-  char *dirname;
-  char *filename;
+GFile *
+_st_theme_resolve_url(StTheme *theme,
+                      CRStyleSheet *base_stylesheet,
+                      const char *url) {
+  char *scheme;
+  GFile *resource = NULL;
 
-  /* Handle absolute file:/ URLs */
-  if (g_str_has_prefix (url, "file:") ||
-      g_str_has_prefix (url, "File:") ||
-      g_str_has_prefix (url, "FILE:"))
-    {
-      GError *error = NULL;
-      char *filename;
+  /* Handle file:// and resource:// URLs */
+  if ((scheme = g_uri_parse_scheme (url))) {
+    if ( 0 == g_strcmp0(scheme, "file") || 0 == g_strcmp0(scheme, "resource")) {
+      resource = g_file_new_for_uri (url);
 
-      filename = g_filename_from_uri (url, NULL, &error);
-      if (filename == NULL)
-        {
-          g_warning ("%s", error->message);
-          g_error_free (error);
-        }
-      else
-        {
-          g_free (filename);
-        }
-
+    } else {
+      g_warning ("URL '%s' in theme stylesheet is not supported", url);
       return NULL;
     }
+    g_free (scheme);
+  }
 
-  /* Guard against http:/ URLs */
+  if (NULL == resource && url[0] == '/') {
+    /* We have an absolute path */
+    resource = g_file_new_for_path (url);
+  }
 
-  if (g_str_has_prefix (url, "http:") ||
-      g_str_has_prefix (url, "Http:") ||
-      g_str_has_prefix (url, "HTTP:"))
-    {
-      g_warning ("Http URL '%s' in theme stylesheet is not supported", url);
-      return NULL;
-    }
+  if (NULL == resource && NULL != base_stylesheet) {
+    /* Assume anything else is a relative URL, and "resolve" it */
+    GFile *base_file = NULL, *parent;
 
-  /* Assume anything else is a relative URL, and "resolve" it
-   */
-  if (url[0] == '/')
-    return g_strdup (url);
+    base_file = g_hash_table_lookup (theme->files_by_stylesheet, base_stylesheet);
 
-  base_filename = g_hash_table_lookup (theme->filenames_by_stylesheet, base_stylesheet);
+    /* This is an internal function, if we get here with
+	   a bad @base_stylesheet we have a problem. */
+    g_assert (base_file);
 
-  if (base_filename == NULL)
-    {
-      g_warning ("Can't get base to resolve url '%s'", url);
-      return NULL;
-    }
+    parent = g_file_get_parent (base_file);
+    resource = g_file_resolve_relative_path (parent, url);
 
-  dirname = g_path_get_dirname (base_filename);
-  filename = g_build_filename (dirname, url, NULL);
-  g_free (dirname);
+    g_object_unref (parent);
+  }
 
-  return filename;
+  return resource;
 }

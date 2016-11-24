@@ -1048,12 +1048,11 @@ _st_theme_get_matched_properties (StTheme        *theme,
 {
   enum CRStyleOrigin origin = 0;
   CRStyleSheet *sheet = NULL;
+  GPtrArray *props = g_ptr_array_new ();
   GSList *iter;
 
   g_return_val_if_fail (ST_IS_THEME (theme), NULL);
   g_return_val_if_fail (ST_IS_THEME_NODE (node), NULL);
-
-  GPtrArray *props = g_ptr_array_new ();
 
   for (origin = ORIGIN_UA; origin < NB_ORIGINS; origin++)
     {

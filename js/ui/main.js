@@ -317,7 +317,7 @@ function start() {
     global.stage.no_clear_hint = true;
     
     Gtk.IconTheme.get_default().append_search_path("/usr/share/cinnamon/icons/");
-    _defaultCssStylesheet = global.datadir + '/theme/cinnamon.css';    
+    _defaultCssStylesheet = Gio.File.new_for_path(global.datadir + '/theme/cinnamon.css');
 
     soundManager = new SoundManager.SoundManager();
 

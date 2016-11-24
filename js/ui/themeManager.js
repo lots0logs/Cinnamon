@@ -66,6 +66,8 @@ ThemeManager.prototype = {
             global.log('loading user theme: ' + _stylesheet);
         else
             global.log('loading default theme');
+
+        _stylesheet = Gio.File.new_for_path(_stylesheet);
         Main.setThemeStylesheet(_stylesheet);
         Main.loadTheme();
         if (this.themeDirectory) {

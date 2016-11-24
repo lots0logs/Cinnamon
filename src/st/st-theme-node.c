@@ -1739,8 +1739,7 @@ _st_theme_node_ensure_background (StThemeNode *node)
           CRTerm *term;
           /* background: property sets all terms to specified or default values */
           node->background_color = TRANSPARENT_COLOR;
-          g_free (node->background_image);
-          node->background_image = NULL;
+          g_clear_object (&node->background_image);
           node->background_position_set = FALSE;
           node->background_size = ST_BACKGROUND_SIZE_AUTO;
 
@@ -1756,8 +1755,7 @@ _st_theme_node_ensure_background (StThemeNode *node)
                   if (node->parent_node)
                     {
                       st_theme_node_get_background_color (node->parent_node, &node->background_color);
-                      node->background_image = g_strdup (st_theme_node_get_background_image (node->parent_node));
-                      node->background_bumpmap = g_strdup (st_theme_node_get_background_bumpmap (node->parent_node));
+                      node->background_image = g_object_ref (st_theme_node_get_background_image (node->parent_node));
                     }
                 }
               else if (term_is_none (term))
@@ -1767,15 +1765,18 @@ _st_theme_node_ensure_background (StThemeNode *node)
               else if (term->type == TERM_URI)
                 {
                   CRStyleSheet *base_stylesheet;
+                  GFile *file;
 
                   if (decl->parent_statement != NULL)
                     base_stylesheet = decl->parent_statement->parent_sheet;
                   else
                     base_stylesheet = NULL;
 
-                  node->background_image = _st_theme_resolve_url (node->theme,
-                                                                  base_stylesheet,
-                                                                  term->content.str->stryng->str);
+                  node->background_image = _st_theme_resolve_url (
+                      node->theme,
+                      base_stylesheet,
+                      term->content.str->stryng->str
+                  );
                 }
             }
         }
@@ -1878,50 +1879,19 @@ _st_theme_node_ensure_background (StThemeNode *node)
               else
                 base_stylesheet = NULL;
 
-              g_free (node->background_image);
+              g_clear_object (&node->background_image);
               node->background_image = _st_theme_resolve_url (node->theme,
                                                               base_stylesheet,
                                                               decl->value->content.str->stryng->str);
             }
           else if (term_is_inherit (decl->value))
             {
-              g_free (node->background_image);
-              node->background_image = g_strdup (st_theme_node_get_background_image (node->parent_node));
+              g_clear_object (&node->background_image);
+              node->background_image = g_object_ref (st_theme_node_get_background_image (node->parent_node));
             }
           else if (term_is_none (decl->value))
             {
-              g_free (node->background_image);
-              node->background_image = NULL;
-            }
-        }
-      else if (strcmp (property_name, "-bumpmap") == 0)
-        {
-          if (decl->value == NULL || decl->value->next != NULL)
-            continue;
-
-          if (decl->value->type == TERM_URI)
-            {
-              CRStyleSheet *base_stylesheet;
-
-              if (decl->parent_statement != NULL)
-                base_stylesheet = decl->parent_statement->parent_sheet;
-              else
-                base_stylesheet = NULL;
-
-              g_free (node->background_bumpmap);
-              node->background_bumpmap = _st_theme_resolve_url (node->theme,
-                                                                base_stylesheet,
-                                                                decl->value->content.str->stryng->str);
-              
-            }
-          else if (term_is_inherit (decl->value))
-            {
-              g_free (node->background_bumpmap);
-              node->background_bumpmap = g_strdup (st_theme_node_get_background_bumpmap (node->parent_node));
-            }
-          else if (term_is_none(decl->value))
-            {
-              g_free (node->background_bumpmap);
+              g_clear_object (&node->background_image);
             }
         }
       else if (strcmp (property_name, "-gradient-direction") == 0)
